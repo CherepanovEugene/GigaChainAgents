@@ -1,0 +1,215 @@
+systems:
+  berezka.systems.berezka:
+    title: Маркетплейс
+    description: Система на микросервисной архитектуре, реализующая прикладной функционал маркетплейса
+    class: Продуктовая фабрика (основная деятельность)
+    group: berezka.groups.systems_sbercloud
+    location: Внутренняя
+    ownership: Владеем исходным кодом
+    target-status: Целевая
+    live-stage: Промышленная эксплуатация
+    live-stage-target: Промышленная эксплуатация
+    change-type: Модифицируется
+    criticality: Business Critical
+    performance: Обработка не менее 150 запросов в секунду со средним временем отклика 1 секунда и максимальным временем отклика 15 секунд
+    rto: 24
+    rpo: 24
+    sla: 95
+    monitoring: Prometheus
+
+  berezka.systems.berezka.catalog:
+    title: Каталог услуг
+    description: Каталог услуг, предоставляемых на маркетплейса
+    class: Продуктовая фабрика (основная деятельность)
+    group: berezka.groups.systems_sbercloud
+    parent: berezka.systems.berezka
+    location: Внутренняя
+    ownership: Владеем исходным кодом
+    target-status: Целевая
+    live-stage: Промышленная эксплуатация
+    live-stage-target: Промышленная эксплуатация
+    change-type: Модифицируется
+    criticality: Business Critical
+    performance: Обработка не менее 150 запросов в секунду со средним временем отклика 1 секунда и максимальным временем отклика 15 секунд
+    rto: 24
+    rpo: 24
+    sla: 95
+    monitoring: Prometheus
+
+  berezka.systems.crm:
+    title: CRM
+    description: Операционный CRM
+    class: CRM-операционный
+    location: Внутренняя
+    ownership: Владеем экземпляром
+    group: berezka.groups.systems_sbercloud
+    target-status: Целевая
+    live-stage: Опытная эксплуатация
+    live-stage-target: Промышленная эксплуатация
+    change-type: Используется
+    criticality: Business Operational
+    sla: 95
+    monitoring: Prometheus
+
+  berezka.systems.1c:
+    title: 1C_Бухгалтерия
+    description: Бухгалтерская отчетность
+    class: Бухгалтерия и финансы
+    group: berezka.groups.systems_office
+    location: Внутренняя
+    ownership: Владеем экземпляром
+    live-stage: Промышленная эксплуатация
+    live-stage-target: Промышленная эксплуатация
+    target-status: Целевая
+    criticality: Office Productivity
+    change-type: Используется
+    sla: 95
+
+  berezka.systems.analytics:
+    title: Аналитика
+    description: Построение срезов по потребляемым услугам, построение гистрограмм стоимости услуг
+    class: Аналитика данных
+    live-stage: Эскиз
+    change-type: Планируется
+    live-stage-target: В разработке / приобретение
+    status: Целевая
+    group: berezka.groups.system
+
+  berezka.ecosystem.partners.2gis:
+    title: 2GIS
+    description: Карты в приложениях
+    class: Гео-информационные системы
+    location: Внешняя
+    ownership: Система партнера
+    live-stage: Промышленная эксплуатация
+    change-type: Используется
+    group: berezka.groups.ecosystem_partners
+
+  berezka.external_systems.marketing:
+    title: Маркетинговые рассылки
+    description: Рассылка маркетинговых сообщений клиентам
+    class: Маркетинг
+    location: Внешняя
+    ownership: Система партнера
+    live-stage: Промышленная эксплуатация
+    change-type: Используется
+    group: berezka.groups.external_partners
+
+  berezka.external_systems.smsc:
+    title: SMSC
+    description: Сервис отправки SMS клиентам
+    class: Рассылка SMS/Push
+    location: Внешняя
+    ownership: Система партнера
+    live-stage: Промышленная эксплуатация
+    change-type: Используется
+    group: berezka.groups.external_partners
+
+  berezka.external_systems.email:
+    title: Email
+    description: Корпоративная почта
+    class: E-mail
+    location: Внешняя
+    ownership: SaaS
+    live-stage: Промышленная эксплуатация
+    change-type: Используется
+    group: berezka.groups.external_cloud
+
+  berezka.external_systems.iptelephony:
+    title: АТС
+    description: Внешний сервис виртуальной АТС
+    class: Телефония
+    location: Внешняя
+    ownership: SaaS
+    live-stage: Промышленная эксплуатация
+    change-type: Используется
+    group: berezka.groups.external_cloud
+
+  berezka.external_systems.office365:
+    title: Офис365
+    description: Облачный офисный пакет
+    class: Совместная работа (collaboration)
+    location: Внешняя
+    ownership: SaaS
+    live-stage: Промышленная эксплуатация
+    change-type: Используется
+    group: berezka.groups.external_cloud
+
+  berezka.external_systems.telegram:
+    title: Telegram
+    description: Telegram
+    class: Мессенджеры
+    location: Внешняя
+    ownership: Система партнера
+    live-stage: Промышленная эксплуатация
+    change-type: Используется
+    group: berezka.groups.external_partners
+
+  berezka.external_systems.esia:
+    title: Госуслуги
+    description: Госуслуги
+    class: Клиентский профиль (Customer Information File)
+    location: Внешняя
+    ownership: Система партнера
+    live-stage: Промышленная эксплуатация
+    change-type: Используется
+    group: berezka.groups.gov
+
+  berezka.external_systems.smev:
+    title: СМЭВ
+    description: Взаимодействие с Электронным правительством
+    class: Регуляторная отчетность
+    location: Внешняя
+    ownership: Система партнера
+    live-stage: Промышленная эксплуатация
+    group: berezka.groups.gov
+
+  berezka.systems.osinka:
+    title: Базар услуг
+    description: Монолитная система, реализующая прикладной функционал маркетплейса
+    class: Продуктовая фабрика (основная деятельность)
+    group: berezka.groups.systems_sbercloud
+    location: Внутренняя
+    ownership: Владеем исходным кодом
+    target-status: Не целевая
+    change-type: Разрабатывается
+    live-stage: Промышленная эксплуатация
+    live-stage-target: Промышленная эксплуатация
+    criticality: Business Critical
+    performance: Обработка не менее 150 запросов в секунду со средним временем отклика 1 секунда и максимальным временем отклика 15 секунд
+    rto: 24
+    rpo: 24
+    sla: 95
+    monitoring: Нет
+
+  berezka.systems.sosinka:
+    title: Сосинка услуг
+    description: Монолитная система, реализующая прикладной функционал маркетплейса
+    class: Продуктовая фабрика (основная деятельность)
+    group: berezka.groups.systems_sbercloud
+    location: Внутренняя
+    ownership: Владеем исходным кодом
+    live-stage: Архивная
+    live-stage-target: В разработке / приобретение
+    target-status: Не целевая
+    change-type: Модифицируется
+    criticality: Business Critical
+    performance: Обработка не менее 150 запросов в секунду со средним временем отклика 1 секунда и максимальным временем отклика 15 секунд
+    rto: 24
+    rpo: 24
+    sla: 95
+    monitoring: Нет
+
+  berezka.systems.dubok:
+    title: Дубок услуг
+    description: Монолитная система, реализующая прикладной функционал маркетплейса
+    parent: berezka.systems.sosinka
+    class: Продуктовая фабрика (основная деятельность)
+    group: berezka.groups.systems_sbercloud
+    location: Внутренняя
+    ownership: Владеем исходным кодом
+    live-stage: Архивная
+    live-stage-target: В разработке / приобретение
+    target-status: Не целевая
+    change-type: Модифицируется
+    criticality: Mission Critical
