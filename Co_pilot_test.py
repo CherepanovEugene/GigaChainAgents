@@ -55,111 +55,214 @@ def communication_agent(user_id, query):
     communication_data = {"user_id": user_id, "query": query}
 
     # Вызываем агент-оркестратор и передаём данные
-    orchestrator_result = orchestrator_agent(communication_data, object_retriever)
+    orchestrator_result = orchestrator_agent(communication_data)
     logger.info(f"Результат от агента-оркестратора: {orchestrator_result}")  # Логируем результат
     return orchestrator_result  # Возвращаем результат
 
 
-# --- Агент-оркестратор ---
-def orchestrator_agent(data, object_retriever):
-    print("\n--- Агент-оркестратор ---")
+def orchestrator_agent(data):
     """
     Агент-оркестратор:
-    - Определяет, каким агентам направить запрос.
+    - Определяет, содержится ли объект в предустановленном списке.
+    - Маршрутизирует запрос либо в RepositoryAgent, либо в KnowledgeAgent.
+
     :param data: Данные от CommunicationAgent.
-    :param object_retriever: Ретривер для поиска объектов.
+    :return: Результат маршрутизации.
     """
-    logger = setup_logger("OrchestratorAgent")  # Логирование для оркестратора
+    print("\n--- Агент-оркестратор ---")
+    logger = setup_logger("OrchestratorAgent")  # Логирование
     logger.info(f"Получен запрос от CommunicationAgent: {data}")  # Логируем данные
 
     query = data["query"]  # Извлекаем запрос пользователя
 
-    # Поиск объектов в справочнике через RAG
-    object_results = object_retriever.similarity_search(query, k=3)  # Поиск релевантных объектов
-    object_list = "\n".join([result.page_content for result in object_results])  # Формируем текст из результатов поиска
+    #  СПИСОК ОБЪЕКТОВ ДЛЯ ПОИСКА
+    object_list = [
+        "Компания",
+        "Пользователь",
+        "Система",
+        "Интеграция"
+    ]  # Просто список доступных объектов
 
-    # Проверка через LLM: упоминаются ли объекты из справочника?
+    # --- Проверяем через LLM, упоминается ли объект в запросе ---
     llm_prompt = (
-        f"Справочник объектов:\n{object_list}\n\n"
+        f"Дан список объектов:\n{', '.join(object_list)}\n\n"
         f"Запрос пользователя: {query}\n\n"
-        f"Есть ли в запросе упоминания объектов из справочника? Ответь 'Да' или 'Нет'."
+        f"Есть ли в запросе упоминание одного из объектов в списке? Ответь 'Да' или 'Нет'."
     )
-    llm_response = giga.invoke(llm_prompt).content.strip()  # Получаем ответ от GigaChat
+
+    llm_response = giga.invoke(llm_prompt).content.strip()  # Получаем ответ от LLM
     logger.info(f"Ответ LLM: {llm_response}")  # Логируем ответ LLM
 
-    # Маршрутизация на основе ответа LLM
+    # --- Маршрутизация запроса ---
     if llm_response == "Да":
-        result = repository_agent(query, systems_data_vectorstore)  # Вызов Repository-агента
+        result = repository_agent(query)  # Направляем в RepositoryAgent
         print(f"Передано агенту по работе с Репозиторием: {result}")
     elif llm_response == "Нет":
-        result = knowledge_agent(query)  # Вызов агента базы знаний
+        result = knowledge_agent(query)  # Направляем в KnowledgeAgent
         print(f"Передано агенту по работе с Внутренней базой знаний: {result}")
-
     else:
         result = "Ошибка: Некорректный ответ от LLM."  # Ошибка маршрутизации
 
     logger.info(f"Результат маршрутизации: {result}")  # Логируем результат
     return result  # Возвращаем результат
 
+
 # --- Repository Агент (Ищет в YAML-файлах) ---
 
-# --- Чтение данных из YAML ---
-def load_systems_data(file_path):
+# --- Функция загрузки данных из YAML ---
+def load_systems_data(yaml_file):
     """
-    Загружает данные систем из YAML файла.
-    :param file_path: Путь к файлу YAML.
+    Загружает данные систем из YAML-файла.
+    :param yaml_file: Путь к YAML-файлу.
     :return: Список текстовых представлений объектов.
     """
-    with open(file_path, "r", encoding="utf-8") as file:
-        data = yaml.safe_load(file)
-    systems = data.get("systems", {})
+    logger = setup_logger("LoadSystemsData")
+    logger.info(f"Загрузка данных из {yaml_file}")
+
+    with open(yaml_file, "r", encoding="utf-8") as file:
+        data = yaml.safe_load(file)  # Читаем YAML-файл
+
+    systems = data.get("systems", {})  # Достаём объекты "systems"
 
     # Формируем текстовые представления для индексации
     text_data = [
         f"id: {system_id}\n" + yaml.dump(system_data, allow_unicode=True)
         for system_id, system_data in systems.items()
     ]
+
+    logger.info(f"Загружено {len(text_data)} объектов из {yaml_file}")
     return text_data
 
-# --- Создание векторного хранилища ---
-def create_vectorstore(data, gigachat_api_key):
+
+# --- Функция загрузки векторного хранилища ---
+def load_vectorstore(vectorstore_path):
     """
-    Создаёт векторное хранилище на основе данных.
+    Загружает локальное векторное хранилище FAISS, если оно существует.
+    :param vectorstore_path: Путь к файлу хранилища.
+    :return: Объект FAISS или None, если файла нет.
+    """
+    logger = setup_logger("VectorStoreLoader")
+
+    if os.path.exists(vectorstore_path):
+        logger.info(f"Загрузка векторного хранилища из {vectorstore_path}...")
+        return FAISS.load_local(vectorstore_path, embeddings = GigaChatEmbeddings(                  # Создаём эмбеддинги для текста
+            credentials=gigachat_api_key,
+            verify_ssl_certs=False
+        ),
+                                allow_dangerous_deserialization=True)
+
+    logger.warning(f"Файл {vectorstore_path} не найден. Требуется создание нового хранилища.")
+    return None  # Если файла нет, возвращаем None
+
+
+# --- Функция создания векторного хранилища ---
+def create_vectorstore(data, vectorstore_path):
+    """
+    Создаёт и сохраняет векторное хранилище FAISS.
     :param data: Список текстов для индексации.
-    :param openai_api_key: Ключ OpenAI API.
-    :return: Векторное хранилище FAISS.
+    :param vectorstore_path: Путь для сохранения.
+    :return: Объект FAISS.
     """
+    logger = setup_logger("VectorStoreCreator")
+    logger.info(f"Создание векторного хранилища в {vectorstore_path}")
+
     embeddings = GigaChatEmbeddings(
         credentials=gigachat_api_key,
         verify_ssl_certs=False
     )
     vectorstore = FAISS.from_texts(data, embeddings)
+
+    # Сохраняем хранилище локально
+    vectorstore.save_local(vectorstore_path)
+    logger.info(f"Векторное хранилище сохранено в {vectorstore_path}")
+
     return vectorstore
 
-def repository_agent(query, systems_data_vectorstore):
-    print("\n--- Агент по работе с репозиторием ---")
+
+# --- Функция агента репозитория ---
+def repository_agent(query):
     """
-     Агент для поиска информации по объектам в репозитории.
-     :param query: Запрос пользователя.
-     :param vectorstore: Векторное хранилище данных.
-     :return: Ответ на основе релевантных данных.
-     """
-    logger = setup_logger("RepositoryAgent")  # Логирование для оркестратора
-    logger.info(f"Получен запрос от Агента-оркестратора: {query}")  # Логируем данные
-    # Поиск релевантных документов
-    results = systems_data_vectorstore.similarity_search(query, k=10)  # k - количество результатов
-    relevant_data = "\n\n".join([result.page_content for result in results])
+    Агент для поиска информации по объектам в репозитории.
+    :param query: Запрос пользователя.
+    :return: Ответ LLM на основе данных.
+    """
+    global systems_data_vectorstore  # Используем глобальную переменную
 
-    # Логирование сформированных релевантных данных
-    # logger.info(f"Сформированные релевантные данные (relevant_data):\n{relevant_data}")
+    logger = setup_logger("RepositoryAgent")
+    logger.info(f"Получен запрос: {query}")
 
-    # Формируем запрос для LLM
-    llm_prompt = (
-        f"На основе следующих данных:\n{relevant_data}\n\n"
-        f"Найди информацию по объекту в запросе: {query}.\n\n"
-        f"Если данных недостаточно, скажи: 'Данных недостаточно для ответа на запрос.'"
-    )
-    response = giga.invoke(llm_prompt).content.strip()
+    # 1. Загружаем векторное хранилище, если оно ещё не загружено
+    if systems_data_vectorstore is None:
+        logger.info("Векторное хранилище не загружено. Загружаем...")
+        systems_data_vectorstore = load_vectorstore(vectorstore_path)
+
+        if systems_data_vectorstore is None:  # Если хранилище отсутствует, создаём новое
+            logger.info("Векторное хранилище не найдено. Создаём новое...")
+            systems_data = load_systems_data(systems_file)  # Загружаем YAML-файл
+            systems_data_vectorstore = create_vectorstore(systems_data, vectorstore_path)  # Создаём FAISS-хранилище
+
+    # 2. Выполняем поиск по хранилищу
+    results = systems_data_vectorstore.as_retriever().invoke(query)
+
+    if results:
+        relevant_data = "\n\n".join([result.page_content for result in results])
+        logger.info(f"Найдено {len(results)} релевантных фрагментов:\n{relevant_data}")
+
+        # 3. Формируем запрос к LLM
+        llm_prompt = (
+            f"На основе следующих данных:\n{relevant_data}\n\n"
+            f"Ответь на запрос: {query}.\n\n"
+            f"Если данных недостаточно, скажи: 'Данных недостаточно для ответа'."
+        )
+        response = giga.invoke(llm_prompt).content.strip()
+    else:
+        logger.warning("Данные не найдены.")
+        response = "Данных недостаточно для ответа."
+
+    logger.info(f"Ответ от RepositoryAgent: {response}")
+    return response
+
+
+def repository_agent(query):
+    """
+    Агент для поиска информации по объектам в YAML-репозитории.
+    :param query: Запрос пользователя.
+    :return: Ответ LLM на основе данных.
+    """
+    global systems_data_vectorstore  # Используем глобальную переменную
+
+    logger = setup_logger("RepositoryAgent")
+    logger.info(f"Получен запрос: {query}")
+
+    # 1. Загружаем векторное хранилище, если оно ещё не загружено
+    if systems_data_vectorstore is None:
+        logger.info("Векторное хранилище не загружено. Загружаем...")
+        systems_data_vectorstore = load_vectorstore(vectorstore_path)
+
+        if systems_data_vectorstore is None:  # Если хранилище отсутствует, создаём новое
+            logger.info("Векторное хранилище не найдено. Создаём новое...")
+            systems_data = load_systems_data(systems_file)  # Загружаем YAML-файл
+            systems_data_vectorstore = create_vectorstore(systems_data, vectorstore_path)  # Создаём FAISS-хранилище
+
+    # 2. Выполняем поиск по хранилищу
+    results = systems_data_vectorstore.as_retriever().invoke(query)
+
+    if results:
+        relevant_data = "\n\n".join([result.page_content for result in results])
+        logger.info(f"Найдено {len(results)} релевантных фрагментов:\n{relevant_data}")
+
+        # 3. Формируем запрос к LLM
+        llm_prompt = (
+            f"На основе следующих данных:\n{relevant_data}\n\n"
+            f"Ответь на запрос: {query}.\n\n"
+            f"Если данных недостаточно, скажи: 'Данных недостаточно для ответа'."
+        )
+        response = giga.invoke(llm_prompt).content.strip()
+    else:
+        logger.warning("Данные не найдены.")
+        response = "Данных недостаточно для ответа."
+
+    logger.info(f"Ответ от RepositoryAgent: {response}")
     return response
 
 # --- Агент внутренней базы знаний ---
@@ -175,16 +278,30 @@ def knowledge_agent(query):
     logger.info(f"Получен запрос от агента коммуникации: {query}")  # Логируем запрос
 
     # Чтение данных из базы знаний (файл knowledge_base.txt)
-    knowledge_file = "knowledge_base.txt"  # Имя файла базы знаний
-    with open(knowledge_file, "r", encoding="utf-8") as file:  # Открываем файл
-        knowledge_data = file.read().splitlines()  # Читаем строки и разбиваем их на список
+    # knowledge_file = "knowledge_base.txt"  # Имя файла базы знаний
+    # with open(knowledge_file, "r", encoding="utf-8") as file:  # Открываем файл
+    #     knowledge_data = file.read().splitlines()  # Читаем строки и разбиваем их на список
+    # # Создание векторного хранилища
+    # text_splitter = CharacterTextSplitter(chunk_size=200, chunk_overlap=20)  # Разделение текста на части
+    # documents = text_splitter.split_text("\n".join(knowledge_data))  # Формируем документы из текста
+    # embeddings = GigaChatEmbeddings(                  # Создаём эмбеддинги для текста
+    #         credentials=gigachat_api_key,
+    #         verify_ssl_certs=False
+    #     )
+    # knowledge_vectorstore = FAISS.from_texts(documents, embeddings)  # Создаём векторное хранилище
 
-    # Создание векторного хранилища
-    text_splitter = CharacterTextSplitter(chunk_size=200, chunk_overlap=20)  # Разделение текста на части
-    documents = text_splitter.split_text("\n".join(knowledge_data))  # Формируем документы из текста
-    embeddings = GigaChatEmbeddings(credentials=gigachat_api_key, verify_ssl_certs=False)  # Создаём эмбеддинги для текста
-    vectorstore = FAISS.from_texts(documents, embeddings)  # Создаём векторное хранилище
-    retriever = vectorstore.as_retriever()  # Настраиваем поиск по векторному хранилищу
+    # Путь для сохранения хранилища
+    knowledge_vectorstore_path = "vectorstores/knowledge_vectorstore.faiss"
+    # Сохранение FAISS-хранилища
+    # knowledge_vectorstore.save_local(knowledge_vectorstore_path)
+
+    # Загрузка FAISS-хранилища
+    knowledge_vectorstore = FAISS.load_local(knowledge_vectorstore_path, embeddings = GigaChatEmbeddings(                  # Создаём эмбеддинги для текста
+            credentials=gigachat_api_key,
+            verify_ssl_certs=False
+        ),
+                                allow_dangerous_deserialization=True)
+    retriever = knowledge_vectorstore.as_retriever()  # Настраиваем поиск по векторному хранилищу
 
     # Поиск в базе знаний
     results = retriever.invoke(query)  # Выполняем поиск по запросу
@@ -214,7 +331,6 @@ def knowledge_agent(query):
         logger.info("Возврат ответа агенту коммуникации.")  # Логируем возврат
         return response  # Возвращаем релевантный ответ
 
-# --- LLM Recommender Agent ---
 def llm_recommender_agent(query):
     print("\n--- Агент для уточнения информации в LLM ---")
     """
@@ -231,29 +347,20 @@ def llm_recommender_agent(query):
 
 # --- Тестирование системы ---
 if __name__ == "__main__":
-    # Настройка справочника объектов, поиск по которым должен осуществляться поиск в Репозитории
-    object_data = [
-        "Компания",
-        "Пользователь",
-        "Система",
-        "Интеграция"
-    ]
-    text_splitter = CharacterTextSplitter(chunk_size=200, chunk_overlap=20)
-    object_retriever = create_vectorstore(object_data, gigachat_api_key)
+    vectorstore_path = "vectorstores/systems_vectorstore.faiss"  # Путь к файлу хранилища
+    systems_file = "objects/systems_test.yaml"  # Файл с объектами
 
-    # Пути к файлам
-    systems_file = "objects/systems_test.yaml"
-    # Загрузка данных о системах из репозитория
-    systems_data = load_systems_data(systems_file)
-    print(f"Загружены данные по Автоматизированным системам для индексации: {len(systems_data)} объектов")
-    # Создание векторного хранилища c данными Автоматизированных Систем
-    systems_data_vectorstore = create_vectorstore(systems_data, gigachat_api_key)
-    print("Векторное хранилище с данными Автоматизированных Систем успешно создано.")
+    # Загружаем векторное хранилище или создаём его, если нет файла
+    systems_data_vectorstore = load_vectorstore(vectorstore_path)
+    if systems_data_vectorstore is None:  # Если хранилище отсутствует, создаём новое
+        systems_data = load_systems_data(systems_file)
+        systems_data_vectorstore = create_vectorstore(systems_data, vectorstore_path)
 
-# Тестовый запрос
-user_id = "user_001"
-user_query = "Система CRM"
 
-print("\n--- Агент коммуникации ---")
-communication_data = communication_agent(user_id, user_query)
-print(f"Итоговый ответ: {communication_data}")
+    # Тестовый запрос
+    user_id = "user_001"
+    user_query = "Нейронные сети"
+
+    print("\n--- Агент коммуникации ---")
+    communication_data = communication_agent(user_id, user_query)
+    print(f"Итоговый ответ: {communication_data}")
