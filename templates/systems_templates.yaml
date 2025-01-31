@@ -9,7 +9,7 @@ entities:
           type: object
           properties:
             location:
-              title: Размещение
+              title: Водоизмещение
               enum:
                 - Внутренняя
                 - Внешняя

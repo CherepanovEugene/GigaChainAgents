@@ -75,7 +75,7 @@ def orchestrator_agent(data):
 
     query = data["query"]  # Извлекаем запрос пользователя
 
-    #  СПИСОК ОБЪЕКТОВ ДЛЯ ПОИСКА
+    #  Список объектов для поиска
     object_list = [
         "Компания",
         "Пользователь",
@@ -108,6 +108,18 @@ def orchestrator_agent(data):
 
 
 # --- Repository Агент (Ищет в YAML-файлах) ---
+
+def load_template(file_path):
+    """
+    Загружает модель объекта из YAML файла.
+
+    :param file_path: Путь к YAML файлу с описанием модели объекта.
+    :return: Данные модели в формате Python (словарь).
+    """
+    with open(file_path, "r", encoding="utf-8") as file:
+        template_data = yaml.safe_load(file)  # Читаем YAML и преобразуем в Python-объект
+
+    return template_data  # Возвращаем загруженные данные
 
 # --- Функция загрузки данных из YAML ---
 def load_systems_data(yaml_file):
@@ -178,8 +190,7 @@ def create_vectorstore(data, vectorstore_path):
 
     return vectorstore
 
-
-# --- Функция агента репозитория ---
+ #--- Функция агента репозитория ---
 def repository_agent(query):
     """
     Агент для поиска информации по объектам в репозитории.
@@ -191,48 +202,8 @@ def repository_agent(query):
     logger = setup_logger("RepositoryAgent")
     logger.info(f"Получен запрос: {query}")
 
-    # 1. Загружаем векторное хранилище, если оно ещё не загружено
-    if systems_data_vectorstore is None:
-        logger.info("Векторное хранилище не загружено. Загружаем...")
-        systems_data_vectorstore = load_vectorstore(vectorstore_path)
-
-        if systems_data_vectorstore is None:  # Если хранилище отсутствует, создаём новое
-            logger.info("Векторное хранилище не найдено. Создаём новое...")
-            systems_data = load_systems_data(systems_file)  # Загружаем YAML-файл
-            systems_data_vectorstore = create_vectorstore(systems_data, vectorstore_path)  # Создаём FAISS-хранилище
-
-    # 2. Выполняем поиск по хранилищу
-    results = systems_data_vectorstore.as_retriever().invoke(query)
-
-    if results:
-        relevant_data = "\n\n".join([result.page_content for result in results])
-        logger.info(f"Найдено {len(results)} релевантных фрагментов:\n{relevant_data}")
-
-        # 3. Формируем запрос к LLM
-        llm_prompt = (
-            f"На основе следующих данных:\n{relevant_data}\n\n"
-            f"Ответь на запрос: {query}.\n\n"
-            f"Если данных недостаточно, скажи: 'Данных недостаточно для ответа'."
-        )
-        response = giga.invoke(llm_prompt).content.strip()
-    else:
-        logger.warning("Данные не найдены.")
-        response = "Данных недостаточно для ответа."
-
-    logger.info(f"Ответ от RepositoryAgent: {response}")
-    return response
-
-
-def repository_agent(query):
-    """
-    Агент для поиска информации по объектам в YAML-репозитории.
-    :param query: Запрос пользователя.
-    :return: Ответ LLM на основе данных.
-    """
-    global systems_data_vectorstore  # Используем глобальную переменную
-
-    logger = setup_logger("RepositoryAgent")
-    logger.info(f"Получен запрос: {query}")
+    template_data = load_template(template_file)  # Загружаем шаблон
+    logger.info(f"Описание модели данных:\n{template_data}")
 
     # 1. Загружаем векторное хранилище, если оно ещё не загружено
     if systems_data_vectorstore is None:
@@ -254,6 +225,7 @@ def repository_agent(query):
         # 3. Формируем запрос к LLM
         llm_prompt = (
             f"На основе следующих данных:\n{relevant_data}\n\n"
+            f"И модели данных объекта:\n{template_data}\n\n"
             f"Ответь на запрос: {query}.\n\n"
             f"Если данных недостаточно, скажи: 'Данных недостаточно для ответа'."
         )
@@ -264,6 +236,7 @@ def repository_agent(query):
 
     logger.info(f"Ответ от RepositoryAgent: {response}")
     return response
+
 
 # --- Агент внутренней базы знаний ---
 def knowledge_agent(query):
@@ -345,13 +318,15 @@ def llm_recommender_agent(query):
     return response  # Возвращаем ответ
 
 
-# --- Тестирование системы ---
+ #--- Тестирование системы ---
 if __name__ == "__main__":
     vectorstore_path = "vectorstores/systems_vectorstore.faiss"  # Путь к файлу хранилища
     systems_file = "objects/systems_test.yaml"  # Файл с объектами
+    template_file = "templates/systems_templates.yaml" # Файл с описанием модели данных
 
     # Загружаем векторное хранилище или создаём его, если нет файла
     systems_data_vectorstore = load_vectorstore(vectorstore_path)
+
     if systems_data_vectorstore is None:  # Если хранилище отсутствует, создаём новое
         systems_data = load_systems_data(systems_file)
         systems_data_vectorstore = create_vectorstore(systems_data, vectorstore_path)
@@ -359,7 +334,7 @@ if __name__ == "__main__":
 
     # Тестовый запрос
     user_id = "user_001"
-    user_query = "Нейронные сети"
+    user_query = "Система CRM"
 
     print("\n--- Агент коммуникации ---")
     communication_data = communication_agent(user_id, user_query)
